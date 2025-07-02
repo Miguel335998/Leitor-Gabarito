@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Correção + Mapeamento</title>
+  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 30px;
+      background-color: #f0f0f0;
+    }
+    #canvasCorrigido {
+      display: none;
+      width: 90%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+      margin: 20px auto; /* centralizado horizontalmente */
+      display: block;
+    }
+    #acertos, #carregando {
+      font-size: 20px;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Leitor de Gabarito</h2>
+  <input type="file" id="uploadImagem" accept="image/*">
+  <div id="carregando">⏳ Processando imagem, aguarde...</div>
+  <canvas id="canvasCorrigido"></canvas>
+  <div id="acertos"></div>
+
+  <script>
+    const canvasCorrigido = document.getElementById('canvasCorrigido');
+    const carregando = document.getElementById('carregando');
+    const acertosDiv = document.getElementById('acertos');
+
+    const gabaritoOficial = {};
+    const letras = ["A", "B", "C", "D", "E"];
+    for (let i = 1; i <= 100; i++) {
+      gabaritoOficial[i] = letras[(i - 1) % 5];
+    }
+
+    function onOpenCvReady() {
+      console.log("✅ OpenCV carregado");
+    }
+
+    function mostrarErro() {
+      alert("Erro ao ler a imagem. Certifique-se de que a folha está visível, bem iluminada e enquadrada.");
+    }
+
+    function ordenarPontos(pontos) {
+      pontos.sort((a, b) => a.x + a.y - (b.x + b.y));
+      let [p0, p1, p2, p3] = pontos;
+      let topLeft = p0;
+      let bottomRight = p3;
+      let rest = [p1, p2];
+      let topRight = rest[0].x > rest[1].x ? rest[0] : rest[1];
+      let bottomLeft = rest[0].x < rest[1].x ? rest[0] : rest[1];
+      return [topLeft, topRight, bottomRight, bottomLeft];
+    }
+
+    const _mapearQuestoes = function(img, colunas = 4, linhas = 25, larguraFinal = 800) {
+      const alturaFinal = Math.round((larguraFinal * img.rows) / img.cols);
+      cv.resize(img, img, new cv.Size(larguraFinal, alturaFinal));
+
+      const larguraColuna = larguraFinal / colunas;
+      const alturaLinha = alturaFinal / linhas;
+      const larguraParte = larguraColuna / 6;
+
+      const mapped = img.clone();
+      const cinza = new cv.Mat();
+      cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
+
+      let acertos = 0;
+
+      for (let col = 0; col < colunas; col++) {
+        for (let lin = 0; lin < linhas; lin++) {
+          const x = col * larguraColuna;
+          const y = lin * alturaLinha;
+          const numeroQuestao = col * linhas + lin + 1;
+
+          let menorMedia = 255;
+          let alternativa = "-";
+          let posicaoMarcada = -1;
+
+          for (let i = 1; i <= 5; i++) {
+            const roiX = Math.floor(x + i * larguraParte);
+            const roiY = Math.floor(y);
+            const roiW = Math.floor(larguraParte);
+            const roiH = Math.floor(alturaLinha);
+            const roi = cinza.roi(new cv.Rect(roiX, roiY, roiW, roiH));
+            const media = cv.mean(roi)[0];
+            roi.delete();
+
+            if (media < menorMedia) {
+              menorMedia = media;
+              alternativa = letras[i - 1];
+              posicaoMarcada = i;
+            }
+          }
+
+          const gabarito = gabaritoOficial[numeroQuestao];
+          const acertou = gabarito === alternativa;
+          if (acertou && posicaoMarcada !== -1) {
+            const cx = x + posicaoMarcada * larguraParte + larguraParte / 2;
+            const cy = y + alturaLinha / 2;
+            cv.circle(mapped, new cv.Point(cx, cy), 10, new cv.Scalar(255, 0, 255, 255), 3);
+            acertos++;
+          }
+
+          console.log(`Questão ${numeroQuestao} - Marcado: ${alternativa} - Gabarito: ${gabarito} ${acertou ? "✅" : "❌"}`);
+        }
+      }
+
+      console.log(`✅ Total de acertos: ${acertos} de ${colunas * linhas}`);
+
+      canvasCorrigido.width = larguraFinal;
+      canvasCorrigido.height = alturaFinal;
+      cv.imshow('canvasCorrigido', mapped);
+      cinza.delete();
+      mapped.delete();
+
+      carregando.style.display = "none";
+      canvasCorrigido.style.display = "block";
+      acertosDiv.innerHTML = `✅ Total de acertos: ${acertos} de ${colunas * linhas}`;
+      acertosDiv.style.display = "block";
+    };
+
+    document.getElementById('uploadImagem').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      carregando.style.display = "block";
+      acertosDiv.style.display = "none";
+      canvasCorrigido.style.display = "none";
+
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.onload = function () {
+          const canvasTemp = document.createElement("canvas");
+          canvasTemp.width = img.width;
+          canvasTemp.height = img.height;
+          const ctx = canvasTemp.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          let src = cv.imread(canvasTemp);
+          let gray = new cv.Mat();
+          let blurred = new cv.Mat();
+          let edged = new cv.Mat();
+          let contours = new cv.MatVector();
+          let hierarchy = new cv.Mat();
+
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+          cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+          cv.Canny(blurred, edged, 50, 150);
+          cv.findContours(edged, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+          let biggest = null;
+          let biggestArea = 0;
+
+          for (let i = 0; i < contours.size(); i++) {
+            let cnt = contours.get(i);
+            let peri = cv.arcLength(cnt, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+            if (approx.rows === 4) {
+              let area = cv.contourArea(cnt);
+              if (area > biggestArea) {
+                biggestArea = area;
+                if (biggest) biggest.delete();
+                biggest = approx;
+              } else {
+                approx.delete();
+              }
+            } else {
+              approx.delete();
+            }
+          }
+
+          if (biggest) {
+            let pontos = [];
+            for (let i = 0; i < 4; i++) {
+              let pt = biggest.intPtr(i);
+              pontos.push(new cv.Point(pt[0], pt[1]));
+            }
+
+            let [tl, tr, br, bl] = ordenarPontos(pontos);
+
+            let maxWidth = Math.max(
+              Math.hypot(tr.x - tl.x, tr.y - tl.y),
+              Math.hypot(br.x - bl.x, br.y - bl.y)
+            );
+            let maxHeight = Math.max(
+              Math.hypot(tl.x - bl.x, tl.y - bl.y),
+              Math.hypot(tr.x - br.x, tr.y - br.y)
+            );
+
+            let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+              tl.x, tl.y,
+              tr.x, tr.y,
+              br.x, br.y,
+              bl.x, bl.y
+            ]);
+            let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+              0, 0,
+              maxWidth, 0,
+              maxWidth, maxHeight,
+              0, maxHeight
+            ]);
+
+            let M = cv.getPerspectiveTransform(srcQuad, dstQuad);
+            let warped = new cv.Mat();
+            let dsize = new cv.Size(maxWidth, maxHeight);
+            cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+            _mapearQuestoes(warped);
+
+            warped.delete(); M.delete(); srcQuad.delete(); dstQuad.delete();
+          } else {
+            mostrarErro();
+          }
+
+          src.delete(); gray.delete(); blurred.delete(); edged.delete();
+          contours.delete(); hierarchy.delete();
+          if (biggest) biggest.delete();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  </script>
+</body>
+</html>
