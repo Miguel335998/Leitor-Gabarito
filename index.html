@@ -7,49 +7,46 @@
   <style>
     body {
       font-family: Arial, sans-serif;
+      margin: 20px;
       text-align: center;
-      margin: 30px;
-      background-color: #f0f0f0;
+    }
+    #acertos {
+      font-size: 20px;
+      font-weight: bold;
+      color: green;
+      margin-bottom: 10px;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+      max-width: 100%;
     }
     #canvasCorrigido {
-      display: none;
-      width: 90%;
-      max-width: 500px;
-      border: 1px solid #ccc;
-      margin: 20px auto; /* centralizado horizontalmente */
+      width: 600px;
+      height: auto;
       display: block;
-    }
-    #acertos, #carregando {
-      font-size: 20px;
-      margin-top: 20px;
-      display: none;
+      margin: 0 auto;
     }
   </style>
 </head>
 <body>
-  <h2>Leitor de Gabarito</h2>
+  <h2>Correção + Mapeamento</h2>
+  <div id="acertos">Acertos: -</div>
   <input type="file" id="uploadImagem" accept="image/*">
-  <div id="carregando">⏳ Processando imagem, aguarde...</div>
+  <br>
   <canvas id="canvasCorrigido"></canvas>
-  <div id="acertos"></div>
 
   <script>
     const canvasCorrigido = document.getElementById('canvasCorrigido');
-    const carregando = document.getElementById('carregando');
-    const acertosDiv = document.getElementById('acertos');
-
-    const gabaritoOficial = {};
-    const letras = ["A", "B", "C", "D", "E"];
-    for (let i = 1; i <= 100; i++) {
-      gabaritoOficial[i] = letras[(i - 1) % 5];
-    }
+    const divAcertos = document.getElementById('acertos');
 
     function onOpenCvReady() {
-      console.log("✅ OpenCV carregado");
+      console.log("✅ OpenCV.js carregado");
     }
 
-    function mostrarErro() {
-      alert("Erro ao ler a imagem. Certifique-se de que a folha está visível, bem iluminada e enquadrada.");
+    function mostrarErro(mensagem) {
+      alert(mensagem || "Erro ao ler a foto. Tire uma que enquadre toda a folha, de cima e bem iluminada.");
+      document.getElementById('uploadImagem').value = '';
     }
 
     function ordenarPontos(pontos) {
@@ -63,81 +60,138 @@
       return [topLeft, topRight, bottomRight, bottomLeft];
     }
 
-    const _mapearQuestoes = function(img, colunas = 4, linhas = 25, larguraFinal = 800) {
+    function removerLinhasGrade(imgRGBA) {
+      let gray = new cv.Mat();
+      cv.cvtColor(imgRGBA, gray, cv.COLOR_RGBA2GRAY);
+      let horizontal = new cv.Mat();
+      let vertical = new cv.Mat();
+      let linhas = new cv.Mat();
+      let kernelHoriz = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 1));
+      let kernelVert = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
+      cv.adaptiveThreshold(gray, linhas, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 15, 10);
+      cv.morphologyEx(linhas, horizontal, cv.MORPH_OPEN, kernelHoriz);
+      cv.morphologyEx(linhas, vertical, cv.MORPH_OPEN, kernelVert);
+      cv.add(horizontal, vertical, linhas);
+      cv.bitwise_not(linhas, linhas);
+      let resultado = new cv.Mat();
+      cv.bitwise_and(imgRGBA, imgRGBA, resultado, linhas);
+      cv.medianBlur(resultado, resultado, 3);
+      gray.delete(); horizontal.delete(); vertical.delete();
+      kernelHoriz.delete(); kernelVert.delete(); linhas.delete();
+      return resultado;
+    }
+
+    function mapearQuestoes(img, colunas = 4, linhas = 25, larguraFinal = 800) {
+      // ✅ Gabarito até a questão 100 (A, B, C, D, E alternando)
+      const letras = ['A', 'B', 'C', 'D', 'E'];
+      const gabaritoOficial = {};
+      for (let i = 1; i <= 100; i++) {
+        gabaritoOficial[i] = letras[(i - 1) % 5];
+      }
+
       const alturaFinal = Math.round((larguraFinal * img.rows) / img.cols);
       cv.resize(img, img, new cv.Size(larguraFinal, alturaFinal));
-
+      const cinza = new cv.Mat();
+      const binaria = new cv.Mat();
+      const binariaRGBA = new cv.Mat();
+      cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
+      cv.threshold(cinza, binaria, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      cv.cvtColor(binaria, binariaRGBA, cv.COLOR_GRAY2RGBA);
+      cinza.delete();
+      binaria.delete();
       const larguraColuna = larguraFinal / colunas;
       const alturaLinha = alturaFinal / linhas;
-      const larguraParte = larguraColuna / 6;
-
-      const mapped = img.clone();
-      const cinza = new cv.Mat();
-      cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
-
-      let acertos = 0;
+      const mapped = binariaRGBA.clone();
+      const cinzaParaLeitura = new cv.Mat();
+      cv.cvtColor(mapped, cinzaParaLeitura, cv.COLOR_RGBA2GRAY);
+      let totalAcertos = 0;
 
       for (let col = 0; col < colunas; col++) {
         for (let lin = 0; lin < linhas; lin++) {
           const x = col * larguraColuna;
           const y = lin * alturaLinha;
           const numeroQuestao = col * linhas + lin + 1;
+          const p1 = new cv.Point(x, y);
+          const p2 = new cv.Point(x + larguraColuna, y + alturaLinha);
+          cv.rectangle(mapped, p1, p2, new cv.Scalar(0, 255, 0, 255), 2);
+          const partes = 6;
+          const larguraParte = larguraColuna / partes;
+          for (let i = 1; i < partes; i++) {
+            const xLinha = x + i * larguraParte;
+            const pt1 = new cv.Point(xLinha, y);
+            const pt2 = new cv.Point(xLinha, y + alturaLinha);
+            cv.line(mapped, pt1, pt2, new cv.Scalar(255, 255, 0, 255), 2);
+          }
 
-          let menorMedia = 255;
-          let alternativa = "-";
-          let posicaoMarcada = -1;
-
-          for (let i = 1; i <= 5; i++) {
-            const roiX = Math.floor(x + i * larguraParte);
-            const roiY = Math.floor(y);
-            const roiW = Math.floor(larguraParte);
-            const roiH = Math.floor(alturaLinha);
-            const roi = cinza.roi(new cv.Rect(roiX, roiY, roiW, roiH));
-            const media = cv.mean(roi)[0];
+          let medias = [];
+          for (let i = 1; i < partes; i++) {
+            let roiX = Math.floor(x + i * larguraParte);
+            let roiY = Math.floor(y);
+            let roiW = Math.floor(larguraParte);
+            let roiH = Math.floor(alturaLinha);
+            let roi = cinzaParaLeitura.roi(new cv.Rect(roiX, roiY, roiW, roiH));
+            let media = cv.mean(roi)[0];
+            medias.push(media);
             roi.delete();
+          }
 
-            if (media < menorMedia) {
-              menorMedia = media;
-              alternativa = letras[i - 1];
-              posicaoMarcada = i;
+          const menor = Math.min(...medias);
+          const indicesMenores = medias
+            .map((m, idx) => ({ idx, m }))
+            .filter(obj => obj.m - menor < 15);
+          let resultado;
+
+          if (indicesMenores.length === 0 || Math.max(...medias) - menor < 20) {
+            resultado = "EM BRANCO";
+          } else if (indicesMenores.length === 1) {
+            const idxEscolhido = indicesMenores[0].idx;
+            const mediaEscolhida = medias[idxEscolhido];
+            const diferencas = medias
+              .filter((_, i) => i !== idxEscolhido)
+              .map(m => m - mediaEscolhida);
+            const todasBemDiferentes = diferencas.every(diff => diff > 10);
+            if (todasBemDiferentes) {
+              resultado = letras[idxEscolhido];
+            } else {
+              resultado = "MAIS DE UMA MARCADA";
+            }
+          } else {
+            resultado = "MAIS DE UMA MARCADA";
+          }
+
+          if (resultado === "EM BRANCO" || resultado === "MAIS DE UMA MARCADA") {
+            let candidatos = medias.map((m, i) => {
+              let diffs = medias.filter((_, j) => j !== i).map(m2 => m2 - m);
+              let destaque = diffs.every(d => d > 25);
+              return destaque ? letras[i] : null;
+            }).filter(x => x !== null);
+            if (candidatos.length === 1) {
+              resultado = `${candidatos[0]} ⚠️`;
             }
           }
 
-          const gabarito = gabaritoOficial[numeroQuestao];
-          const acertou = gabarito === alternativa;
-          if (acertou && posicaoMarcada !== -1) {
-            const cx = x + posicaoMarcada * larguraParte + larguraParte / 2;
-            const cy = y + alturaLinha / 2;
-            cv.circle(mapped, new cv.Point(cx, cy), 10, new cv.Scalar(255, 0, 255, 255), 3);
-            acertos++;
+          const respostaLimpa = resultado.replace(" ⚠️", "");
+          if (gabaritoOficial[numeroQuestao] && respostaLimpa === gabaritoOficial[numeroQuestao]) {
+            totalAcertos++;
           }
 
-          console.log(`Questão ${numeroQuestao} - Marcado: ${alternativa} - Gabarito: ${gabarito} ${acertou ? "✅" : "❌"}`);
+          console.log(`Questão ${numeroQuestao} - ${resultado} (Gabarito: ${gabaritoOficial[numeroQuestao] || "-"})`);
         }
       }
 
-      console.log(`✅ Total de acertos: ${acertos} de ${colunas * linhas}`);
-
+      divAcertos.textContent = `Acertos: ${totalAcertos}`;
       canvasCorrigido.width = larguraFinal;
       canvasCorrigido.height = alturaFinal;
       cv.imshow('canvasCorrigido', mapped);
-      cinza.delete();
       mapped.delete();
-
-      carregando.style.display = "none";
-      canvasCorrigido.style.display = "block";
-      acertosDiv.innerHTML = `✅ Total de acertos: ${acertos} de ${colunas * linhas}`;
-      acertosDiv.style.display = "block";
-    };
+      binariaRGBA.delete();
+      cinzaParaLeitura.delete();
+    }
 
     document.getElementById('uploadImagem').addEventListener('change', function (e) {
       const file = e.target.files[0];
       if (!file) return;
-
-      carregando.style.display = "block";
-      acertosDiv.style.display = "none";
-      canvasCorrigido.style.display = "none";
-
+      console.clear();
       const reader = new FileReader();
       reader.onload = function (event) {
         const img = new Image();
@@ -147,28 +201,23 @@
           canvasTemp.height = img.height;
           const ctx = canvasTemp.getContext('2d');
           ctx.drawImage(img, 0, 0);
-
           let src = cv.imread(canvasTemp);
           let gray = new cv.Mat();
           let blurred = new cv.Mat();
           let edged = new cv.Mat();
           let contours = new cv.MatVector();
           let hierarchy = new cv.Mat();
-
           cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
           cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
           cv.Canny(blurred, edged, 50, 150);
           cv.findContours(edged, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
           let biggest = null;
           let biggestArea = 0;
-
           for (let i = 0; i < contours.size(); i++) {
             let cnt = contours.get(i);
             let peri = cv.arcLength(cnt, true);
             let approx = new cv.Mat();
             cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-
             if (approx.rows === 4) {
               let area = cv.contourArea(cnt);
               if (area > biggestArea) {
@@ -182,8 +231,16 @@
               approx.delete();
             }
           }
-
           if (biggest) {
+            let areaFolha = cv.contourArea(biggest);
+            let areaImagem = src.cols * src.rows;
+            if (areaFolha < 0.4 * areaImagem) {
+              mostrarErro("A folha está muito distante ou há objetos demais na imagem.");
+              src.delete(); gray.delete(); blurred.delete(); edged.delete();
+              contours.delete(); hierarchy.delete(); biggest.delete();
+              return;
+            }
+
             let pontos = [];
             for (let i = 0; i < 4; i++) {
               let pt = biggest.intPtr(i);
@@ -191,39 +248,42 @@
             }
 
             let [tl, tr, br, bl] = ordenarPontos(pontos);
-
             let maxWidth = Math.max(
               Math.hypot(tr.x - tl.x, tr.y - tl.y),
               Math.hypot(br.x - bl.x, br.y - bl.y)
             );
             let maxHeight = Math.max(
-              Math.hypot(tl.x - bl.x, tl.y - bl.y),
-              Math.hypot(tr.x - br.x, tr.y - br.y)
+              Math.hypot(tr.x - br.x, tr.y - br.y),
+              Math.hypot(tl.x - bl.x, tl.y - bl.y)
             );
+            const proporcao = maxWidth / maxHeight;
+            if (proporcao < 0.5 || proporcao > 2) {
+              mostrarErro("A imagem está muito distorcida.");
+              src.delete(); gray.delete(); blurred.delete(); edged.delete();
+              contours.delete(); hierarchy.delete(); biggest.delete();
+              return;
+            }
 
             let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-              tl.x, tl.y,
-              tr.x, tr.y,
-              br.x, br.y,
-              bl.x, bl.y
+              tl.x, tl.y, tr.x, tr.y,
+              br.x, br.y, bl.x, bl.y
             ]);
             let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-              0, 0,
-              maxWidth, 0,
-              maxWidth, maxHeight,
-              0, maxHeight
+              0, 0, maxWidth, 0,
+              maxWidth, maxHeight, 0, maxHeight
             ]);
 
             let M = cv.getPerspectiveTransform(srcQuad, dstQuad);
             let warped = new cv.Mat();
             let dsize = new cv.Size(maxWidth, maxHeight);
             cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-            _mapearQuestoes(warped);
-
+            let folhaSemLinhas = removerLinhasGrade(warped);
+            warped.delete();
+            warped = folhaSemLinhas;
+            mapearQuestoes(warped);
             warped.delete(); M.delete(); srcQuad.delete(); dstQuad.delete();
           } else {
-            mostrarErro();
+            mostrarErro("Não foi possível identificar a folha na imagem.");
           }
 
           src.delete(); gray.delete(); blurred.delete(); edged.delete();
