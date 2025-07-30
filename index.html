@@ -1,298 +1,194 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Correção + Mapeamento</title>
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+  <meta charset="UTF-8" />
+  <title>Leitor de Gabaritos TJ-SP</title>
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
-      text-align: center;
+      background: #808080; /* Cinza escuro */
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
-    #acertos {
-      font-size: 20px;
-      font-weight: bold;
-      color: green;
-      margin-bottom: 10px;
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: #dcdcdc; /* Cinza claro */
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 32px 0 40px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
     }
-    canvas {
-      border: 1px solid #ccc;
-      margin-top: 10px;
-      max-width: 100%;
-    }
-    #canvasCorrigido {
-      width: 600px;
-      height: auto;
+    .illustration {
+      width: 88%;
+      max-width: 350px;
+      margin-bottom: 18px;
+      border-radius: 16px;
       display: block;
-      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      font-size: 34px;
+      font-weight: bold;
+      margin: 0 0 10px 0;
+      color: #000;
+    }
+    .instructions-box {
+      width: 92%;
+      background: #e5e5e5;
+      border-radius: 12px;
+      padding: 24px 18px;
+      margin-bottom: 0;
+    }
+    .instructions-box p {
+      margin: 0 0 12px 0;
+      font-size: 21px;
+      color: #222;
+      font-weight: 500;
+      line-height: 1.25;
+    }
+    .checkbox-area {
+      width: 92%;
+      margin-top: 32px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+      min-height: 64px;
+      box-sizing: border-box;
+    }
+    .custom-checkbox {
+      width: 32px;
+      height: 32px;
+      border: 2.5px solid #999;
+      border-radius: 7px;
+      appearance: none;
+      outline: none;
+      background: #fff;
+      margin-right: 18px;
+      position: relative;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+    }
+    .custom-checkbox:checked {
+      background: #4caf50;
+      border-color: #4caf50;
+    }
+    .custom-checkbox:checked:after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 3px;
+      width: 10px;
+      height: 18px;
+      border: solid #fff;
+      border-width: 0 4px 4px 0;
+      transform: rotate(45deg);
+    }
+    .checkbox-label {
+      font-size: 21px;
+      font-weight: 600;
+      color: #444;
+      cursor: pointer;
+      user-select: none;
+    }
+    .upload-btn-area {
+      width: 96%;
+      margin-top: 18px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      min-height: 80px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s;
+      padding: 0;
+    }
+    .upload-btn-area.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .upload-btn {
+      width: 100%;
+      padding: 22px 0;
+      background: #ff9500;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      margin: 0 auto 10px auto;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .upload-btn:active {
+      background: #cc7700;
+    }
+    @media (max-width: 700px) {
+      h1 { font-size: 22px; }
+      .instructions-box p, .checkbox-label { font-size: 15px; }
+      .upload-btn { font-size: 15px; }
+      .illustration { max-width: 100%; }
     }
   </style>
 </head>
 <body>
-  <h2>Correção + Mapeamento</h2>
-  <div id="acertos">Acertos: -</div>
-  <input type="file" id="uploadImagem" accept="image/*">
-  <br>
-  <canvas id="canvasCorrigido"></canvas>
+  <div class="container">
+    <img src="imagem1.png" alt="Ilustração de pessoa fotografando folha" class="illustration">
 
+    <h1>LEITOR DE GABARITOS TJ-SP</h1>
+
+    <div class="instructions-box">
+      <p>1 - Tire uma foto em um local plano, sem objetos em cima ou ao redor da folha.</p>
+      <p>2 - Certifique-se de que toda a folha esteja visível e alinhada.</p>
+      <p>3 - Tire uma foto com o flash ligado, posicionando o celular sobre a folha.</p>
+    </div>
+
+    <div class="checkbox-area">
+      <input type="checkbox" id="checkbox" class="custom-checkbox" />
+      <label for="checkbox" class="checkbox-label">LI TODAS AS INSTRUÇÕES</label>
+    </div>
+
+    <div class="upload-btn-area" id="upload-btn-area">
+      <button id="upload-btn" class="upload-btn">Clique aqui para anexar a foto</button>
+      <input type="file" id="file-upload" style="display: none;" />
+    </div>
+  </div>
   <script>
-    const canvasCorrigido = document.getElementById('canvasCorrigido');
-    const divAcertos = document.getElementById('acertos');
+    // Função para mostrar/esconder o botão de upload sem mudar o layout
+    const checkbox = document.getElementById('checkbox');
+    const uploadBtnArea = document.getElementById('upload-btn-area');
+    const uploadBtn = document.getElementById('upload-btn');
+    const fileUpload = document.getElementById('file-upload');
 
-    function onOpenCvReady() {
-      console.log("✅ OpenCV.js carregado");
-    }
+    checkbox.addEventListener('change', function() {
+      uploadBtnArea.classList.toggle("visible", this.checked);
+    });
 
-    function mostrarErro(mensagem) {
-      alert(mensagem || "Erro ao ler a foto. Tire uma que enquadre toda a folha, de cima e bem iluminada.");
-      document.getElementById('uploadImagem').value = '';
-    }
+    uploadBtn.addEventListener('click', () => {
+      fileUpload.click();
+    });
 
-    function ordenarPontos(pontos) {
-      pontos.sort((a, b) => a.x + a.y - (b.x + b.y));
-      let [p0, p1, p2, p3] = pontos;
-      let topLeft = p0;
-      let bottomRight = p3;
-      let rest = [p1, p2];
-      let topRight = rest[0].x > rest[1].x ? rest[0] : rest[1];
-      let bottomLeft = rest[0].x < rest[1].x ? rest[0] : rest[1];
-      return [topLeft, topRight, bottomRight, bottomLeft];
-    }
-
-    function removerLinhasGrade(imgRGBA) {
-      let gray = new cv.Mat();
-      cv.cvtColor(imgRGBA, gray, cv.COLOR_RGBA2GRAY);
-      let horizontal = new cv.Mat();
-      let vertical = new cv.Mat();
-      let linhas = new cv.Mat();
-      let kernelHoriz = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 1));
-      let kernelVert = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
-      cv.adaptiveThreshold(gray, linhas, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 15, 10);
-      cv.morphologyEx(linhas, horizontal, cv.MORPH_OPEN, kernelHoriz);
-      cv.morphologyEx(linhas, vertical, cv.MORPH_OPEN, kernelVert);
-      cv.add(horizontal, vertical, linhas);
-      cv.bitwise_not(linhas, linhas);
-      let resultado = new cv.Mat();
-      cv.bitwise_and(imgRGBA, imgRGBA, resultado, linhas);
-      cv.medianBlur(resultado, resultado, 3);
-      gray.delete(); horizontal.delete(); vertical.delete();
-      kernelHoriz.delete(); kernelVert.delete(); linhas.delete();
-      return resultado;
-    }
-
-    function mapearQuestoes(img, colunas = 4, linhas = 25, larguraFinal = 800) {
-      // ✅ Gabarito até a questão 100 (A, B, C, D, E alternando)
-      const letras = ['A', 'B', 'C', 'D', 'E'];
-      const gabaritoOficial = {};
-      for (let i = 1; i <= 100; i++) {
-        gabaritoOficial[i] = letras[(i - 1) % 5];
+    fileUpload.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        console.log("Foto selecionada: ", file.name);
+        // Próximas etapas aqui!
       }
-
-      const alturaFinal = Math.round((larguraFinal * img.rows) / img.cols);
-      cv.resize(img, img, new cv.Size(larguraFinal, alturaFinal));
-      const cinza = new cv.Mat();
-      const binaria = new cv.Mat();
-      const binariaRGBA = new cv.Mat();
-      cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
-      cv.threshold(cinza, binaria, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-      cv.cvtColor(binaria, binariaRGBA, cv.COLOR_GRAY2RGBA);
-      cinza.delete();
-      binaria.delete();
-      const larguraColuna = larguraFinal / colunas;
-      const alturaLinha = alturaFinal / linhas;
-      const mapped = binariaRGBA.clone();
-      const cinzaParaLeitura = new cv.Mat();
-      cv.cvtColor(mapped, cinzaParaLeitura, cv.COLOR_RGBA2GRAY);
-      let totalAcertos = 0;
-
-      for (let col = 0; col < colunas; col++) {
-        for (let lin = 0; lin < linhas; lin++) {
-          const x = col * larguraColuna;
-          const y = lin * alturaLinha;
-          const numeroQuestao = col * linhas + lin + 1;
-          const p1 = new cv.Point(x, y);
-          const p2 = new cv.Point(x + larguraColuna, y + alturaLinha);
-          cv.rectangle(mapped, p1, p2, new cv.Scalar(0, 255, 0, 255), 2);
-          const partes = 6;
-          const larguraParte = larguraColuna / partes;
-          for (let i = 1; i < partes; i++) {
-            const xLinha = x + i * larguraParte;
-            const pt1 = new cv.Point(xLinha, y);
-            const pt2 = new cv.Point(xLinha, y + alturaLinha);
-            cv.line(mapped, pt1, pt2, new cv.Scalar(255, 255, 0, 255), 2);
-          }
-
-          let medias = [];
-          for (let i = 1; i < partes; i++) {
-            let roiX = Math.floor(x + i * larguraParte);
-            let roiY = Math.floor(y);
-            let roiW = Math.floor(larguraParte);
-            let roiH = Math.floor(alturaLinha);
-            let roi = cinzaParaLeitura.roi(new cv.Rect(roiX, roiY, roiW, roiH));
-            let media = cv.mean(roi)[0];
-            medias.push(media);
-            roi.delete();
-          }
-
-          const menor = Math.min(...medias);
-          const indicesMenores = medias
-            .map((m, idx) => ({ idx, m }))
-            .filter(obj => obj.m - menor < 15);
-          let resultado;
-
-          if (indicesMenores.length === 0 || Math.max(...medias) - menor < 20) {
-            resultado = "EM BRANCO";
-          } else if (indicesMenores.length === 1) {
-            const idxEscolhido = indicesMenores[0].idx;
-            const mediaEscolhida = medias[idxEscolhido];
-            const diferencas = medias
-              .filter((_, i) => i !== idxEscolhido)
-              .map(m => m - mediaEscolhida);
-            const todasBemDiferentes = diferencas.every(diff => diff > 10);
-            if (todasBemDiferentes) {
-              resultado = letras[idxEscolhido];
-            } else {
-              resultado = "MAIS DE UMA MARCADA";
-            }
-          } else {
-            resultado = "MAIS DE UMA MARCADA";
-          }
-
-          if (resultado === "EM BRANCO" || resultado === "MAIS DE UMA MARCADA") {
-            let candidatos = medias.map((m, i) => {
-              let diffs = medias.filter((_, j) => j !== i).map(m2 => m2 - m);
-              let destaque = diffs.every(d => d > 25);
-              return destaque ? letras[i] : null;
-            }).filter(x => x !== null);
-            if (candidatos.length === 1) {
-              resultado = `${candidatos[0]} ⚠️`;
-            }
-          }
-
-          const respostaLimpa = resultado.replace(" ⚠️", "");
-          if (gabaritoOficial[numeroQuestao] && respostaLimpa === gabaritoOficial[numeroQuestao]) {
-            totalAcertos++;
-          }
-
-          console.log(`Questão ${numeroQuestao} - ${resultado} (Gabarito: ${gabaritoOficial[numeroQuestao] || "-"})`);
-        }
-      }
-
-      divAcertos.textContent = `Acertos: ${totalAcertos}`;
-      canvasCorrigido.width = larguraFinal;
-      canvasCorrigido.height = alturaFinal;
-      cv.imshow('canvasCorrigido', mapped);
-      mapped.delete();
-      binariaRGBA.delete();
-      cinzaParaLeitura.delete();
-    }
-
-    document.getElementById('uploadImagem').addEventListener('change', function (e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      console.clear();
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        const img = new Image();
-        img.onload = function () {
-          const canvasTemp = document.createElement("canvas");
-          canvasTemp.width = img.width;
-          canvasTemp.height = img.height;
-          const ctx = canvasTemp.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          let src = cv.imread(canvasTemp);
-          let gray = new cv.Mat();
-          let blurred = new cv.Mat();
-          let edged = new cv.Mat();
-          let contours = new cv.MatVector();
-          let hierarchy = new cv.Mat();
-          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-          cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-          cv.Canny(blurred, edged, 50, 150);
-          cv.findContours(edged, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-          let biggest = null;
-          let biggestArea = 0;
-          for (let i = 0; i < contours.size(); i++) {
-            let cnt = contours.get(i);
-            let peri = cv.arcLength(cnt, true);
-            let approx = new cv.Mat();
-            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-            if (approx.rows === 4) {
-              let area = cv.contourArea(cnt);
-              if (area > biggestArea) {
-                biggestArea = area;
-                if (biggest) biggest.delete();
-                biggest = approx;
-              } else {
-                approx.delete();
-              }
-            } else {
-              approx.delete();
-            }
-          }
-          if (biggest) {
-            let areaFolha = cv.contourArea(biggest);
-            let areaImagem = src.cols * src.rows;
-            if (areaFolha < 0.4 * areaImagem) {
-              mostrarErro("A folha está muito distante ou há objetos demais na imagem.");
-              src.delete(); gray.delete(); blurred.delete(); edged.delete();
-              contours.delete(); hierarchy.delete(); biggest.delete();
-              return;
-            }
-
-            let pontos = [];
-            for (let i = 0; i < 4; i++) {
-              let pt = biggest.intPtr(i);
-              pontos.push(new cv.Point(pt[0], pt[1]));
-            }
-
-            let [tl, tr, br, bl] = ordenarPontos(pontos);
-            let maxWidth = Math.max(
-              Math.hypot(tr.x - tl.x, tr.y - tl.y),
-              Math.hypot(br.x - bl.x, br.y - bl.y)
-            );
-            let maxHeight = Math.max(
-              Math.hypot(tr.x - br.x, tr.y - br.y),
-              Math.hypot(tl.x - bl.x, tl.y - bl.y)
-            );
-            const proporcao = maxWidth / maxHeight;
-            if (proporcao < 0.5 || proporcao > 2) {
-              mostrarErro("A imagem está muito distorcida.");
-              src.delete(); gray.delete(); blurred.delete(); edged.delete();
-              contours.delete(); hierarchy.delete(); biggest.delete();
-              return;
-            }
-
-            let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-              tl.x, tl.y, tr.x, tr.y,
-              br.x, br.y, bl.x, bl.y
-            ]);
-            let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-              0, 0, maxWidth, 0,
-              maxWidth, maxHeight, 0, maxHeight
-            ]);
-
-            let M = cv.getPerspectiveTransform(srcQuad, dstQuad);
-            let warped = new cv.Mat();
-            let dsize = new cv.Size(maxWidth, maxHeight);
-            cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-            let folhaSemLinhas = removerLinhasGrade(warped);
-            warped.delete();
-            warped = folhaSemLinhas;
-            mapearQuestoes(warped);
-            warped.delete(); M.delete(); srcQuad.delete(); dstQuad.delete();
-          } else {
-            mostrarErro("Não foi possível identificar a folha na imagem.");
-          }
-
-          src.delete(); gray.delete(); blurred.delete(); edged.delete();
-          contours.delete(); hierarchy.delete();
-          if (biggest) biggest.delete();
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
     });
   </script>
 </body>
