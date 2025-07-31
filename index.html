@@ -6,90 +6,261 @@
   <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    html, body { height: 100%; margin: 0; padding: 0; background: #808080; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #808080;
+    }
     body {
       font-family: Arial, sans-serif;
-      min-height: 100vh; width: 100vw;
-      display: flex; justify-content: center; align-items: flex-start; overflow-y: auto;
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow-y: auto;
     }
     .container {
-      max-width: 420px; width: 96vw;
-      background: #dcdcdc; border-radius: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      max-width: 420px;
+      width: 96vw;
+      background: #dcdcdc;
+      border-radius: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
       padding: 28px 0 28px 0;
-      display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 22px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin: 22px 0;
     }
-    .illustration { width: 80%; max-width: 220px; margin-bottom: 12px; border-radius: 16px; display: block; }
+    .illustration {
+      width: 80%;
+      max-width: 220px;
+      margin-bottom: 12px;
+      border-radius: 16px;
+      display: block;
+    }
     h1 {
-      text-align: center; font-size: 25px; font-weight: bold;
-      margin: 0 0 8px 0; color: #000; letter-spacing: .5px;
+      text-align: center;
+      font-size: 25px;
+      font-weight: bold;
+      margin: 0 0 8px 0;
+      color: #000;
+      letter-spacing: .5px;
     }
     .instructions-box {
-      width: 92%; border-radius: 10px; padding: 13px 11px; margin-bottom: 0; background: transparent;
+      width: 92%;
+      border-radius: 10px;
+      padding: 13px 11px;
+      margin-bottom: 0;
+      background: transparent;
     }
     .instructions-box p {
-      margin: 0 0 8px 0; font-size: 16px; color: #222; font-weight: 500; line-height: 1.25;
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 500;
+      line-height: 1.25;
     }
     .checkbox-area {
-      width: 92%; margin-top: 18px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: flex-start; background: #f5f5f5;
-      min-height: 40px; box-sizing: border-box; padding-left: 8px;
+      width: 92%;
+      margin-top: 18px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      background: #f5f5f5;
+      min-height: 40px;
+      box-sizing: border-box;
+      padding-left: 8px;
     }
     .custom-checkbox {
-      width: 25px; height: 25px; border: 2.5px solid #999; border-radius: 7px;
-      appearance: none; outline: none; background: #fff;
-      margin-right: 10px; position: relative; cursor: pointer; transition: box-shadow 0.2s;
+      width: 25px;
+      height: 25px;
+      border: 2.5px solid #999;
+      border-radius: 7px;
+      appearance: none;
+      outline: none;
+      background: #fff;
+      margin-right: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
     }
-    .custom-checkbox:checked { background: #4caf50; border-color: #4caf50; }
+    .custom-checkbox:checked {
+      background: #4caf50;
+      border-color: #4caf50;
+    }
     .custom-checkbox:checked:after {
-      content: ''; position: absolute; left: 6px; top: 2px;
-      width: 7px; height: 13px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg);
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 2px;
+      width: 7px;
+      height: 13px;
+      border: solid #fff;
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
     }
     .checkbox-label {
-      font-size: 15px; font-weight: 600; color: #444; cursor: pointer; user-select: none;
+      font-size: 15px;
+      font-weight: 600;
+      color: #444;
+      cursor: pointer;
+      user-select: none;
     }
     .upload-btn-area {
-      width: 95%; margin-top: 15px; background: transparent;
-      display: flex; justify-content: center; align-items: center; flex-direction: column; min-height: 60px; padding: 0;
+      width: 95%;
+      margin-top: 15px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      min-height: 60px;
+      padding: 0;
     }
-    .upload-btn { width: 100%; padding: 15px 0; font-size: 18px; font-weight: 700; border: none; border-radius: 10px; margin: 0 auto 5px auto; cursor: pointer; transition: background 0.3s; background: #d7d7d7; color: #fff; }
-    .upload-btn.enabled { background: #ff9500; color: #fff; }
+    .upload-btn {
+      width: 100%;
+      padding: 15px 0;
+      font-size: 18px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      margin: 0 auto 5px auto;
+      cursor: pointer;
+      transition: background 0.3s;
+      background: #d7d7d7;
+      color: #fff;
+    }
+    .upload-btn.enabled {
+      background: #ff9500;
+      color: #fff;
+    }
     .upload-btn:active.enabled { background: #cc7700; }
-    .form-box label { display: block; font-size: 15px; margin-bottom: 3px; font-weight: 600; color: #333; text-align: left; }
-    .form-box input[type="text"], .form-box input[type="email"], .form-box input[type="tel"] {
-      width: 98%; font-size: 15px; border: 1.2px solid #bbb; border-radius: 7px; padding: 7px 10px; margin-bottom: 8px; outline: none; box-sizing: border-box;
+    .form-box label {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 3px;
+      font-weight: 600;
+      color: #333;
+      text-align: left;
     }
-    .form-checkbox { margin-bottom: 10px; display: flex; align-items: center; gap: 9px; }
-    .form-checkbox input[type="checkbox"] { width: 19px; height: 19px; }
+    .form-box input[type="text"], 
+    .form-box input[type="email"], 
+    .form-box input[type="tel"] {
+      width: 98%;
+      font-size: 15px;
+      border: 1.2px solid #bbb;
+      border-radius: 7px;
+      padding: 7px 10px;
+      margin-bottom: 8px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .form-checkbox {
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .form-checkbox input[type="checkbox"] {
+      width: 19px;
+      height: 19px;
+    }
     .start-btn {
-      width: 100%; background: #0aad6a; color: #fff; font-size: 16px; font-weight: 700; border: none;
-      border-radius: 10px; padding: 12px 0; cursor: pointer; margin-top: 8px; margin-bottom: 0; transition: background 0.3s;
+      width: 100%;
+      background: #0aad6a;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 0;
+      cursor: pointer;
+      margin-top: 8px;
+      margin-bottom: 0;
+      transition: background 0.3s;
     }
-    .start-btn:active { background: #07694a; }
-    .review-box, .result-box, .final-box, .already-sent-box {
-      width: 92%; border-radius: 0; margin: 0 auto 10px auto; text-align: center; font-size: 16px; font-weight: 500; letter-spacing: .5px;
-      background: transparent; box-shadow: none; padding: 0 0 8px 0;
+    .start-btn:active {
+      background: #07694a;
+    }
+    .review-box, .result-box, .final-box {
+      width: 92%;
+      border-radius: 0;
+      margin: 0 auto 10px auto;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: .5px;
+      background: transparent;
+      box-shadow: none;
+      padding: 0 0 8px 0;
+    }
+    .review-box {
+      color: #222;
     }
     .result-box {
-      background: #f4f4f4; padding: 18px 6px 9px 6px; color: #155e17; font-size: 20px; font-weight: bold; border-radius: 13px;
+      background: #f4f4f4;
+      padding: 18px 6px 9px 6px;
+      color: #155e17;
+      font-size: 20px;
+      font-weight: bold;
+      border-radius: 13px;
     }
     .final-box {
-      padding: 25px 8px 20px 8px; font-size: 20px; color: #1a8233; background: #e7ffe9; font-weight: bold; border-radius: 13px;
+      padding: 25px 8px 20px 8px;
+      font-size: 20px;
+      color: #1a8233;
+      background: #e7ffe9;
+      font-weight: bold;
+      border-radius: 13px;
     }
-    .already-sent-box {
-      padding: 25px 8px 20px 8px; font-size: 20px; color: #d22121; background: #ffeaea; font-weight: bold; border-radius: 13px;
+    .actions-row {
+      display: flex;
+      width: 92%;
+      justify-content: space-between;
+      margin: 0 auto 8px auto;
+      gap: 10px;
     }
-    .actions-row { display: flex; width: 92%; justify-content: space-between; margin: 0 auto 8px auto; gap: 10px; }
     .danger-btn, .success-btn, .conclude-btn {
-      flex:1; font-size: 15px; font-weight: 700; border: none; border-radius: 10px; padding: 12px 0; cursor: pointer; margin-bottom: 0; transition: background 0.3s;
+      flex:1;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 0;
+      cursor: pointer;
+      margin-bottom: 0;
+      transition: background 0.3s;
     }
-    .danger-btn { background: #d22121; color: #fff; }
+    .danger-btn {
+      background: #d22121;
+      color: #fff;
+    }
     .danger-btn:active { background: #a91a1a; }
-    .success-btn { background: #19b214; color: #fff; }
+    .success-btn {
+      background: #19b214;
+      color: #fff;
+    }
     .success-btn:active { background: #188f13; }
-    .conclude-btn { background: #ff9500; color: #fff; margin-top: 10px; }
+    .conclude-btn {
+      background: #ff9500;
+      color: #fff;
+      margin-top: 10px;
+    }
     .conclude-btn:active { background: #cc7700; }
     #canvasCorrigido {
-      max-width: 98vw; width: 100%; height: auto; max-height: 900px; background: #000; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.16); display: block; margin: 0 auto 20px auto;
+      max-width: 98vw;
+      width: 100%;
+      height: auto;
+      max-height: 900px;
+      background: #000;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.16);
+      display: block;
+      margin: 0 auto 20px auto;
     }
     @media (max-width: 600px) {
       .container { max-width: 99vw; }
@@ -101,7 +272,7 @@
       .instructions-box { padding: 9px 5px; font-size: 14px;}
       .checkbox-label, .custom-checkbox { font-size: 12px;}
       .upload-btn { font-size: 13px; padding: 9px 0; }
-      .review-box, .result-box, .final-box, .already-sent-box { font-size: 12px; }
+      .review-box, .result-box, .final-box { font-size: 12px; }
       .danger-btn, .success-btn, .conclude-btn { font-size: 12px; padding: 7px 0;}
       #canvasCorrigido { max-height: 300px;}
     }
@@ -125,6 +296,7 @@
       <button id="start-btn" class="start-btn">Começar</button>
     </div>
   </div>
+
   <!-- TELA 2: UPLOAD -->
   <div class="container" id="upload-screen" style="display:none;">
     <img src="imagem1.png" alt="Ilustração de pessoa fotografando folha" class="illustration">
@@ -143,6 +315,7 @@
       <input type="file" id="file-upload" style="display: none;" accept="image/*" />
     </div>
   </div>
+
   <!-- TELA 3: CONFERÊNCIA -->
   <div class="container" id="review-screen" style="display:none;">
     <div class="review-box" style="background:transparent;box-shadow:none;">
@@ -157,36 +330,31 @@
     </div>
     <canvas id="canvasCorrigido"></canvas>
   </div>
+
   <!-- TELA 4: RESULTADO -->
   <div class="container" id="result-screen" style="display:none;">
     <div class="result-box" id="result-text"></div>
     <button id="conclude-btn" class="conclude-btn">Concluir</button>
   </div>
+
   <!-- TELA 5: PARABÉNS -->
   <div class="container" id="final-screen" style="display:none;">
     <div class="final-box">
       Parabéns! O gabarito oficial e o ranking serão divulgados em breve.
     </div>
   </div>
-  <!-- TELA 6: JÁ ENVIADO -->
-  <div class="container" id="already-sent-screen" style="display:none;">
-    <div class="already-sent-box">
-      Você já enviou o gabarito.<br>
-      Caso deseje atualizar sua resposta, entre em contato com a equipe.
-    </div>
-  </div>
+
   <script>
-    // =================== TROCA DE TELAS ===================
+    // Troca de telas
     function showScreen(id) {
       document.getElementById('form-screen').style.display = id === 'form-screen' ? 'flex' : 'none';
       document.getElementById('upload-screen').style.display = id === 'upload-screen' ? 'flex' : 'none';
       document.getElementById('review-screen').style.display = id === 'review-screen' ? 'flex' : 'none';
       document.getElementById('result-screen').style.display = id === 'result-screen' ? 'flex' : 'none';
       document.getElementById('final-screen').style.display = id === 'final-screen' ? 'flex' : 'none';
-      document.getElementById('already-sent-screen').style.display = id === 'already-sent-screen' ? 'flex' : 'none';
     }
 
-    // ========== FORMULÁRIO INICIAL ==========
+    // 1. FORMULÁRIO INICIAL
     let userData = {};
     document.getElementById('start-btn').onclick = function(){
       const nome = document.getElementById('nome').value.trim();
@@ -203,7 +371,7 @@
       setUploadBtnState(false);
     };
 
-    // ========== UPLOAD ==========
+    // 2. UPLOAD
     const checkbox = document.getElementById('checkbox');
     const uploadBtn = document.getElementById('upload-btn');
     const fileUpload = document.getElementById('file-upload');
@@ -223,24 +391,62 @@
 
     // Estado global
     let respostasLidas = [];
-    // ==== GABARITO: UMA QUESTÃO EMBAIXO DA OUTRA ====
     const gabaritoOficial = [
-      "A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E",
-      "A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E",
-      "A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E",
-      "A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E",
-      "A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E"
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E",
+      "A","B","C","D","E","A","B","C","D","E"
     ];
 
+    // Upload e pipeline
     fileUpload.addEventListener('change', (event) => {
       const file = event.target.files[0];
       if (!file) return;
-      resetPipeline();
-      showScreen('review-screen');
-      setTimeout(() => { processarImagem(file); }, 100);
+      // CONVERSÃO PARA JPEG (primeira operação)
+      if (
+        file.type !== 'image/jpeg' &&
+        file.type !== 'image/jpg'
+      ) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(function(blob) {
+              if (!blob) {
+                alert("Falha ao converter a imagem. Tente novamente com JPG.");
+                return;
+              }
+              resetPipeline();
+              showScreen('review-screen');
+              const jpegFile = new File([blob], 'converted.jpg', {type: 'image/jpeg'});
+              processarImagem(jpegFile);
+            }, 'image/jpeg', 0.92);
+          };
+          img.onerror = function() {
+            alert("Erro ao carregar a imagem. Use JPG ou PNG.");
+          }
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        resetPipeline();
+        showScreen('review-screen');
+        setTimeout(() => { processarImagem(file); }, 100);
+      }
     });
 
-    // ========== CONFERÊNCIA ==========
+    // 3. CONFERÊNCIA
     document.getElementById('back-upload').onclick = function(){
       resetPipeline();
       showScreen('upload-screen');
@@ -260,39 +466,8 @@
       showScreen('result-screen');
     };
     document.getElementById('conclude-btn').onclick = function(){
-      // Ao concluir, envia os dados para o Google Sheets
-      enviarParaSheets();
+      showScreen('final-screen');
     };
-
-    // ========== GOOGLE SHEETS ==========
-    const SHEETS_URL = "https://script.google.com/a/macros/aprovasim.com/s/AKfycbyTyYd-zo-0-TgCa0Hj8C6c3OlIehQAF7Tx2svc6E4via0e97jHIH5h13S5ImJ3NTOQBw/exec";
-    function enviarParaSheets() {
-      const data = {
-        nome: userData.nome,
-        email: userData.email,
-        tel: userData.tel,
-        ranking: userData.ranking ? "Sim" : "Não",
-      };
-      for (let i = 0; i < 100; i++) {
-        data["q" + (i+1)] = respostasLidas[i] || "";
-      }
-      fetch(SHEETS_URL + "?email=" + encodeURIComponent(userData.email), { method: "GET" })
-        .then(res => res.json())
-        .then(resp => {
-          if (resp && resp.exists) {
-            showScreen('already-sent-screen');
-          } else {
-            fetch(SHEETS_URL, {
-              method: "POST",
-              body: JSON.stringify(data),
-              headers: { "Content-Type": "application/json" }
-            })
-            .then(() => showScreen('final-screen'))
-            .catch(() => alert("Erro ao enviar. Tente novamente mais tarde."));
-          }
-        })
-        .catch(() => alert("Erro ao validar e-mail."));
-    }
 
     // ========== PIPELINE OPEN CV ==========
     function resetPipeline() {
@@ -388,14 +563,18 @@
         cv.cvtColor(img, gray, cv.COLOR_RGBA2GRAY);
         let borda = Math.floor(gray.rows * 0.05);
         let mask = new cv.Mat.zeros(gray.rows, gray.cols, cv.CV_8U);
+
         mask.roi(new cv.Rect(0, 0, gray.cols, borda)).setTo(new cv.Scalar(255));
         mask.roi(new cv.Rect(0, gray.rows - borda, gray.cols, borda)).setTo(new cv.Scalar(255));
         mask.roi(new cv.Rect(0, 0, borda, gray.rows)).setTo(new cv.Scalar(255));
         mask.roi(new cv.Rect(gray.cols - borda, 0, borda, gray.rows)).setTo(new cv.Scalar(255));
+
         let mean = new cv.Mat();
         let stddev = new cv.Mat();
         cv.meanStdDev(gray, mean, stddev, mask);
+
         let desvio = stddev.doubleAt(0, 0);
+
         gray.delete(); mask.delete(); mean.delete(); stddev.delete();
         return desvio;
       }
@@ -404,7 +583,10 @@
         const limiar = menor + 25;
         let marcadas = medias.map((v, i) => v > limiar ? i : -1).filter(i => i !== -1);
         if (marcadas.length > 1) {
-          return { multiple: true, letras: marcadas.map(i => letras[i]) };
+          return {
+            multiple: true,
+            letras: marcadas.map(i => letras[i])
+          };
         }
         return { multiple: false };
       }
@@ -423,8 +605,10 @@
         const mapped = binariaRGBA.clone();
         const cinzaParaLeitura = new cv.Mat();
         cv.cvtColor(mapped, cinzaParaLeitura, cv.COLOR_RGBA2GRAY);
+
         let marcacoesVisual = [];
         let respostas = [];
+
         for (let col = 0; col < colunas; col++) {
           for (let lin = 0; lin < linhas; lin++) {
             const x = col * larguraColuna;
@@ -433,6 +617,7 @@
             const partes = 6;
             const larguraParte = larguraColuna / partes;
             const letras = ["A", "B", "C", "D", "E"];
+
             let medias = [];
             for (let i = 1; i < partes; i++) {
               let roiX = Math.floor(x + i * larguraParte);
@@ -446,15 +631,21 @@
             }
             const maior = Math.max(...medias);
             const menor = Math.min(...medias);
-            const indicesMaiores = medias.map((m, idx) => ({ idx, m })).filter(obj => maior - obj.m < 15);
+            const indicesMaiores = medias
+              .map((m, idx) => ({ idx, m }))
+              .filter(obj => maior - obj.m < 15);
+
             let resultado;
             let alternativaMarcada = null;
+
             if (indicesMaiores.length === 0 || maior - menor < 30) {
               resultado = "EM BRANCO";
             } else if (indicesMaiores.length === 1) {
               const idxEscolhido = indicesMaiores[0].idx;
               const mediaEscolhida = medias[idxEscolhido];
-              const diferencas = medias.filter((_, i) => i !== idxEscolhido).map(m => mediaEscolhida - m);
+              const diferencas = medias
+                .filter((_, i) => i !== idxEscolhido)
+                .map(m => mediaEscolhida - m);
               const todasBemDiferentes = diferencas.every(diff => diff > 18);
               if (todasBemDiferentes) {
                 resultado = letras[idxEscolhido];
@@ -476,10 +667,12 @@
                 alternativaMarcada = letras.indexOf(candidatos[0]);
               }
             }
+
             const multMarc = detectarMultiplasMarcacoes(medias, letras);
             if (multMarc.multiple) {
               resultado = "MAIS DE UMA MARCADA (" + multMarc.letras.join(", ") + ")";
             }
+
             marcacoesVisual.push({
               coluna: col,
               linha: lin,
@@ -488,6 +681,7 @@
               larguraColuna: larguraColuna,
               alturaLinha: alturaLinha
             });
+
             if (resultado && resultado.length === 1 && resultado.match(/[A-E]/)) {
               respostas[numeroQuestao-1] = resultado;
             } else {
@@ -496,6 +690,7 @@
           }
         }
         respostasLidas = respostas;
+
         if (imgOriginalRetificada) {
           let vis = imgOriginalRetificada.clone();
           cv.resize(vis, vis, new cv.Size(larguraFinal, alturaFinal));
@@ -503,6 +698,7 @@
           canvas.width = larguraFinal;
           canvas.height = alturaFinal;
           cv.imshow(canvas, vis);
+
           marcacoesVisual.forEach(obj => {
             let cx, cy;
             let raio = Math.min(obj.larguraColuna, obj.alturaLinha) * 0.60 / 2;
@@ -555,6 +751,7 @@
       cv.findContours(estado.canny, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
       estado._contours = contours;
       estado._hierarchy = hierarchy;
+
       let biggest = null, biggestArea = 0, contours2 = estado._contours;
       for (let i = 0; i < contours2.size(); i++) {
         let cnt = contours2.get(i);
@@ -621,7 +818,7 @@
       if (estado._contours) estado._contours.delete();
       if (estado._hierarchy) estado._hierarchy.delete();
     }
-    // Dummy OpenCV.js
+
     function onOpenCvReady() {}
   </script>
 </body>
