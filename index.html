@@ -139,6 +139,7 @@
       color: #fff;
     }
     .upload-btn:active.enabled { background: #cc7700; }
+
     .form-box label {
       display: block;
       font-size: 15px;
@@ -296,8 +297,7 @@
       <button id="start-btn" class="start-btn">Começar</button>
     </div>
   </div>
-
-  <!-- TELA 2: UPLOAD -->
+  <!-- TELA 2: UPLOAD (layout original, levemente reduzido) -->
   <div class="container" id="upload-screen" style="display:none;">
     <img src="imagem1.png" alt="Ilustração de pessoa fotografando folha" class="illustration">
     <h1>LEITOR DE GABARITOS TJ-SP</h1>
@@ -315,7 +315,6 @@
       <input type="file" id="file-upload" style="display: none;" accept="image/*" />
     </div>
   </div>
-
   <!-- TELA 3: CONFERÊNCIA -->
   <div class="container" id="review-screen" style="display:none;">
     <div class="review-box" style="background:transparent;box-shadow:none;">
@@ -329,23 +328,23 @@
       <button id="corrigir-btn" class="success-btn">Corrigir</button>
     </div>
     <canvas id="canvasCorrigido"></canvas>
+    <div style="width:100%;text-align:center;">
+      <button id="btn-proxima-etapa" style="padding:9px 24px;margin-bottom:12px;font-size:17px;background:#0071ff;color:#fff;border:none;border-radius:8px;cursor:pointer;">Próxima Etapa</button>
+      <span id="etapa-label" style="margin-left:18px;font-size:16px;color:#333;"></span>
+    </div>
   </div>
-
   <!-- TELA 4: RESULTADO -->
   <div class="container" id="result-screen" style="display:none;">
     <div class="result-box" id="result-text"></div>
     <button id="conclude-btn" class="conclude-btn">Concluir</button>
   </div>
-
   <!-- TELA 5: PARABÉNS -->
   <div class="container" id="final-screen" style="display:none;">
     <div class="final-box">
       Parabéns! O gabarito oficial e o ranking serão divulgados em breve.
     </div>
   </div>
-
   <script>
-    // Troca de telas
     function showScreen(id) {
       document.getElementById('form-screen').style.display = id === 'form-screen' ? 'flex' : 'none';
       document.getElementById('upload-screen').style.display = id === 'upload-screen' ? 'flex' : 'none';
@@ -353,8 +352,6 @@
       document.getElementById('result-screen').style.display = id === 'result-screen' ? 'flex' : 'none';
       document.getElementById('final-screen').style.display = id === 'final-screen' ? 'flex' : 'none';
     }
-
-    // 1. FORMULÁRIO INICIAL
     let userData = {};
     document.getElementById('start-btn').onclick = function(){
       const nome = document.getElementById('nome').value.trim();
@@ -370,8 +367,6 @@
       document.getElementById('checkbox').checked = false;
       setUploadBtnState(false);
     };
-
-    // 2. UPLOAD
     const checkbox = document.getElementById('checkbox');
     const uploadBtn = document.getElementById('upload-btn');
     const fileUpload = document.getElementById('file-upload');
@@ -388,8 +383,6 @@
       }
     }
     uploadBtn.addEventListener('click', () => { if (!uploadBtn.disabled) fileUpload.click(); });
-
-    // Estado global
     let respostasLidas = [];
     const gabaritoOficial = [
       "A","B","C","D","E","A","B","C","D","E",
@@ -403,51 +396,8 @@
       "A","B","C","D","E","A","B","C","D","E",
       "A","B","C","D","E","A","B","C","D","E"
     ];
-
-    // Upload e pipeline
-    fileUpload.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      // CONVERSÃO PARA JPEG (primeira operação)
-      if (
-        file.type !== 'image/jpeg' &&
-        file.type !== 'image/jpg'
-      ) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const img = new Image();
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            canvas.toBlob(function(blob) {
-              if (!blob) {
-                alert("Falha ao converter a imagem. Tente novamente com JPG.");
-                return;
-              }
-              resetPipeline();
-              showScreen('review-screen');
-              const jpegFile = new File([blob], 'converted.jpg', {type: 'image/jpeg'});
-              processarImagem(jpegFile);
-            }, 'image/jpeg', 0.92);
-          };
-          img.onerror = function() {
-            alert("Erro ao carregar a imagem. Use JPG ou PNG.");
-          }
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        resetPipeline();
-        showScreen('review-screen');
-        setTimeout(() => { processarImagem(file); }, 100);
-      }
-    });
-
-    // 3. CONFERÊNCIA
     document.getElementById('back-upload').onclick = function(){
+      resetarPipelineManual();
       resetPipeline();
       showScreen('upload-screen');
       document.getElementById('checkbox').checked = false;
@@ -468,8 +418,336 @@
     document.getElementById('conclude-btn').onclick = function(){
       showScreen('final-screen');
     };
+    let pipelineStep = 0;
+    let pipelineStates = {};
+    let imgOriginalTemp = null;
+    const etapasPipeline = [
+      "Imagem original carregada",
+      "Remover sombras",
+      "Normalizar contraste",
+      "Detecção de contornos (Canny)",
+      "Warp (correção de perspectiva)",
+      "Remover linhas da grade",
+      "Mapeamento das questões (com círculos)"
+    ];
+    document.getElementById('btn-proxima-etapa').onclick = executarProximaEtapa;
+    function atualizarLabelEtapa() {
+      document.getElementById('etapa-label').textContent = etapasPipeline[pipelineStep] ? `Etapa ${pipelineStep}: ${etapasPipeline[pipelineStep]}` : "Fim do pipeline";
+    }
+    function resetarPipelineManual() {
+      pipelineStep = 0;
+      pipelineStates = {};
+      imgOriginalTemp = null;
+      atualizarLabelEtapa();
+    }
+    resetarPipelineManual();
+    function processarImagem(file) {
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.onload = function () {
+          const canvasTemp = document.createElement("canvas");
+          canvasTemp.width = img.width;
+          canvasTemp.height = img.height;
+          const ctx = canvasTemp.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          imgOriginalTemp = cv.imread(canvasTemp);
+          pipelineStates = {};
+          pipelineStep = 0;
+          atualizarLabelEtapa();
+          let canvas = document.getElementById('canvasCorrigido');
+          canvas.width = imgOriginalTemp.cols;
+          canvas.height = imgOriginalTemp.rows;
+          cv.imshow(canvas, imgOriginalTemp);
+          respostasLidas = [];
+          console.log("Imagem original carregada", imgOriginalTemp);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    function ordenarPontos(pontos) {
+      pontos.sort((a, b) => a.x + a.y - (b.x + b.y));
+      let [p0, p1, p2, p3] = pontos;
+      let topLeft = p0;
+      let bottomRight = p3;
+      let rest = [p1, p2];
+      let topRight = rest[0].x > rest[1].x ? rest[0] : rest[1];
+      let bottomLeft = rest[0].x < rest[1].x ? rest[0] : rest[1];
+      return [topLeft, topRight, bottomRight, bottomLeft];
+    }
+    function removerSombras(src) {
+      let srcLab = new cv.Mat();
+      cv.cvtColor(src, srcLab, cv.COLOR_RGBA2GRAY);
+      let background = new cv.Mat();
+      let ksize = new cv.Size(71, 71);
+      cv.GaussianBlur(srcLab, background, ksize, 0);
+      let result = new cv.Mat();
+      cv.absdiff(srcLab, background, result);
+      cv.normalize(result, result, 0, 255, cv.NORM_MINMAX);
+      let resultRGBA = new cv.Mat();
+      cv.cvtColor(result, resultRGBA, cv.COLOR_GRAY2RGBA);
+      srcLab.delete(); background.delete(); result.delete();
+      return resultRGBA;
+    }
+    function normalizarContraste(imgRGBA) {
+      let imgGray = new cv.Mat();
+      cv.cvtColor(imgRGBA, imgGray, cv.COLOR_RGBA2GRAY);
+      let norm = new cv.Mat();
+      cv.normalize(imgGray, norm, 0, 255, cv.NORM_MINMAX);
+      let normRGBA = new cv.Mat();
+      cv.cvtColor(norm, normRGBA, cv.COLOR_GRAY2RGBA);
+      imgGray.delete(); norm.delete();
+      return normRGBA;
+    }
+    function removerLinhasGrade(imgRGBA) {
+      let gray = new cv.Mat();
+      cv.cvtColor(imgRGBA, gray, cv.COLOR_RGBA2GRAY);
+      let horizontal = new cv.Mat();
+      let vertical = new cv.Mat();
+      let linhas = new cv.Mat();
+      let kernelHoriz = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 1));
+      let kernelVert = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
+      cv.adaptiveThreshold(gray, linhas, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 15, 10);
+      cv.morphologyEx(linhas, horizontal, cv.MORPH_OPEN, kernelHoriz);
+      cv.morphologyEx(linhas, vertical, cv.MORPH_OPEN, kernelVert);
+      cv.add(horizontal, vertical, linhas);
+      cv.bitwise_not(linhas, linhas);
+      let resultado = new cv.Mat();
+      cv.bitwise_and(imgRGBA, imgRGBA, resultado, linhas);
+      cv.medianBlur(resultado, resultado, 3);
+      gray.delete(); horizontal.delete(); vertical.delete();
+      kernelHoriz.delete(); kernelVert.delete(); linhas.delete();
+      return resultado;
+    }
+    function mapearQuestoes(img, colunas = 4, linhas = 25, larguraFinal = 800, imgOriginalRetificada = null) {
+      const alturaFinal = Math.round((larguraFinal * img.rows) / img.cols);
+      cv.resize(img, img, new cv.Size(larguraFinal, alturaFinal));
+      const cinza = new cv.Mat();
+      const binaria = new cv.Mat();
+      const binariaRGBA = new cv.Mat();
+      cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
+      cv.threshold(cinza, binaria, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      cv.cvtColor(binaria, binariaRGBA, cv.COLOR_GRAY2RGBA);
+      cinza.delete(); binaria.delete();
+      const larguraColuna = larguraFinal / colunas;
+      const alturaLinha = alturaFinal / linhas;
+      const mapped = binariaRGBA.clone();
+      const cinzaParaLeitura = new cv.Mat();
+      cv.cvtColor(mapped, cinzaParaLeitura, cv.COLOR_RGBA2GRAY);
 
-    // ========== PIPELINE OPEN CV ==========
+      let marcacoesVisual = [];
+      let respostas = [];
+
+      for (let col = 0; col < colunas; col++) {
+        for (let lin = 0; lin < linhas; lin++) {
+          const x = col * larguraColuna;
+          const y = lin * alturaLinha;
+          const numeroQuestao = col * linhas + lin + 1;
+          const partes = 6;
+          const larguraParte = larguraColuna / partes;
+          const letras = ["A", "B", "C", "D", "E"];
+          let medias = [];
+          for (let i = 1; i < partes; i++) {
+            let roiX = Math.floor(x + i * larguraParte);
+            let roiY = Math.floor(y);
+            let roiW = Math.floor(larguraParte);
+            let roiH = Math.floor(alturaLinha);
+            let roi = cinzaParaLeitura.roi(new cv.Rect(roiX, roiY, roiW, roiH));
+            let media = cv.mean(roi)[0];
+            medias.push(media);
+            roi.delete();
+          }
+          const maior = Math.max(...medias);
+          const menor = Math.min(...medias);
+          const indicesMaiores = medias
+            .map((m, idx) => ({ idx, m }))
+            .filter(obj => maior - obj.m < 15);
+
+          let resultado;
+          let alternativaMarcada = null;
+          if (indicesMaiores.length === 0 || maior - menor < 30) {
+            resultado = "EM BRANCO";
+          } else if (indicesMaiores.length === 1) {
+            const idxEscolhido = indicesMaiores[0].idx;
+            const mediaEscolhida = medias[idxEscolhido];
+            const diferencas = medias
+              .filter((_, i) => i !== idxEscolhido)
+              .map(m => mediaEscolhida - m);
+            const todasBemDiferentes = diferencas.every(diff => diff > 18);
+            if (todasBemDiferentes) {
+              resultado = letras[idxEscolhido];
+              alternativaMarcada = idxEscolhido;
+            } else {
+              resultado = "MAIS DE UMA MARCADA";
+            }
+          } else {
+            resultado = "MAIS DE UMA MARCADA";
+          }
+          marcacoesVisual.push({
+            coluna: col,
+            linha: lin,
+            alternativaMarcada: alternativaMarcada,
+            resultado: resultado,
+            larguraColuna: larguraColuna,
+            alturaLinha: alturaLinha
+          });
+          if (resultado && resultado.length === 1 && resultado.match(/[A-E]/)) {
+            respostas[numeroQuestao-1] = resultado;
+          } else {
+            respostas[numeroQuestao-1] = "";
+          }
+        }
+      }
+      respostasLidas = respostas;
+      if (imgOriginalRetificada) {
+        let vis = imgOriginalRetificada.clone();
+        cv.resize(vis, vis, new cv.Size(larguraFinal, alturaFinal));
+        let canvas = document.getElementById('canvasCorrigido');
+        canvas.width = larguraFinal;
+        canvas.height = alturaFinal;
+        cv.imshow(canvas, vis);
+        marcacoesVisual.forEach(obj => {
+          let cx, cy;
+          let raio = Math.min(obj.larguraColuna, obj.alturaLinha) * 0.60 / 2;
+          let ctx = canvas.getContext('2d');
+          if (
+            obj.resultado !== "EM BRANCO" &&
+            !obj.resultado.startsWith("MAIS DE UMA MARCADA")
+          ) {
+            cx = (obj.coluna * obj.larguraColuna) + ((obj.alternativaMarcada + 1) * (obj.larguraColuna / 6)) + (obj.larguraColuna / 6) / 2;
+            cy = (obj.linha * obj.alturaLinha) + (obj.alturaLinha / 2);
+            ctx.beginPath();
+            ctx.arc(cx, cy, raio, 0, 2 * Math.PI);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#23cc23';
+            ctx.stroke();
+          } else {
+            cx = (obj.coluna * obj.larguraColuna) + ((obj.larguraColuna / 6) / 2);
+            cy = (obj.linha * obj.alturaLinha) + (obj.alturaLinha / 2);
+            ctx.beginPath();
+            ctx.arc(cx, cy, raio, 0, 2 * Math.PI);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#ee2222';
+            ctx.stroke();
+          }
+        });
+        vis.delete();
+      }
+      mapped.delete();
+      binariaRGBA.delete();
+      cinzaParaLeitura.delete();
+    }
+    function executarProximaEtapa() {
+      let canvas = document.getElementById('canvasCorrigido');
+      switch (pipelineStep) {
+        case 0:
+          if (!imgOriginalTemp) return;
+          canvas.width = imgOriginalTemp.cols;
+          canvas.height = imgOriginalTemp.rows;
+          cv.imshow(canvas, imgOriginalTemp);
+          console.log("Imagem original carregada", imgOriginalTemp);
+          break;
+        case 1:
+          pipelineStates.semSombras = removerSombras(imgOriginalTemp);
+          canvas.width = pipelineStates.semSombras.cols;
+          canvas.height = pipelineStates.semSombras.rows;
+          cv.imshow(canvas, pipelineStates.semSombras);
+          console.log("Etapa 1: semSombras", pipelineStates.semSombras);
+          break;
+        case 2:
+          pipelineStates.semSombrasNormalizada = normalizarContraste(pipelineStates.semSombras);
+          canvas.width = pipelineStates.semSombrasNormalizada.cols;
+          canvas.height = pipelineStates.semSombrasNormalizada.rows;
+          cv.imshow(canvas, pipelineStates.semSombrasNormalizada);
+          console.log("Etapa 2: semSombrasNormalizada", pipelineStates.semSombrasNormalizada);
+          break;
+        case 3:
+          pipelineStates.cinza = new cv.Mat();
+          cv.cvtColor(pipelineStates.semSombrasNormalizada, pipelineStates.cinza, cv.COLOR_RGBA2GRAY);
+          pipelineStates.blur = new cv.Mat();
+          cv.GaussianBlur(pipelineStates.cinza, pipelineStates.blur, new cv.Size(9,9), 0);
+          pipelineStates.canny = new cv.Mat();
+          cv.Canny(pipelineStates.blur, pipelineStates.canny, 20, 100);
+          canvas.width = pipelineStates.canny.cols;
+          canvas.height = pipelineStates.canny.rows;
+          cv.imshow(canvas, pipelineStates.canny);
+          console.log("Etapa 3: canny", pipelineStates.canny);
+          break;
+        case 4:
+          let contours = new cv.MatVector(), hierarchy = new cv.Mat();
+          cv.findContours(pipelineStates.canny, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+          let biggest = null, biggestArea = 0;
+          for (let i = 0; i < contours.size(); i++) {
+            let cnt = contours.get(i);
+            let peri = cv.arcLength(cnt, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+            if (approx.rows === 4) {
+              let area = cv.contourArea(cnt);
+              if (area > biggestArea) {
+                biggestArea = area;
+                if (biggest) biggest.delete();
+                biggest = approx;
+              } else {
+                approx.delete();
+              }
+            } else {
+              approx.delete();
+            }
+          }
+          if (!biggest) {
+            alert("Não achou contorno com 4 vértices.");
+            return;
+          }
+          let pontos = [];
+          for (let i = 0; i < 4; i++) {
+            let pt = biggest.intPtr(i);
+            pontos.push(new cv.Point(pt[0], pt[1]));
+          }
+          let [tl, tr, br, bl] = ordenarPontos(pontos);
+          let maxWidth = Math.max(
+            Math.hypot(tr.x - tl.x, tr.y - tl.y),
+            Math.hypot(br.x - bl.x, br.y - bl.y)
+          );
+          let maxHeight = Math.max(
+            Math.hypot(tr.x - br.x, tr.y - br.y),
+            Math.hypot(tl.x - bl.x, tl.y - bl.y)
+          );
+          let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            tl.x, tl.y, tr.x, tr.y,
+            br.x, br.y, bl.x, bl.y
+          ]);
+          let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            0, 0, maxWidth, 0,
+            maxWidth, maxHeight, 0, maxHeight
+          ]);
+          pipelineStates.warp = new cv.Mat();
+          cv.warpPerspective(pipelineStates.semSombrasNormalizada, pipelineStates.warp, cv.getPerspectiveTransform(srcQuad, dstQuad), new cv.Size(maxWidth, maxHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+          srcQuad.delete(); dstQuad.delete();
+          canvas.width = pipelineStates.warp.cols;
+          canvas.height = pipelineStates.warp.rows;
+          cv.imshow(canvas, pipelineStates.warp);
+          console.log("Etapa 4: warp (folha retificada)", pipelineStates.warp);
+          break;
+        case 5:
+          pipelineStates.linhas = removerLinhasGrade(pipelineStates.warp);
+          canvas.width = pipelineStates.linhas.cols;
+          canvas.height = pipelineStates.linhas.rows;
+          cv.imshow(canvas, pipelineStates.linhas);
+          console.log("Etapa 5: linhas removidas", pipelineStates.linhas);
+          break;
+        case 6:
+          mapearQuestoes(pipelineStates.linhas, 4, 25, 800, pipelineStates.warp);
+          console.log("Etapa 6: mapeamento questões finalizado");
+          break;
+        default:
+          alert("Fim do pipeline! Reinicie com nova imagem.");
+          return;
+      }
+      pipelineStep++;
+      atualizarLabelEtapa();
+    }
     function resetPipeline() {
       const canvas = document.getElementById('canvasCorrigido');
       if (canvas) {
@@ -485,340 +763,13 @@
       document.getElementById('checkbox').checked = false;
       setUploadBtnState(false);
     }
-    function processarImagem(file) {
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        const img = new Image();
-        img.onload = function () {
-          const canvasTemp = document.createElement("canvas");
-          canvasTemp.width = img.width;
-          canvasTemp.height = img.height;
-          const ctx = canvasTemp.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          pipelinePrincipal(cv.imread(canvasTemp));
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-    function pipelinePrincipal(originalImg) {
-      let estado = {};
-      let folhaAproximada = null;
-      function ordenarPontos(pontos) {
-        pontos.sort((a, b) => a.x + a.y - (b.x + b.y));
-        let [p0, p1, p2, p3] = pontos;
-        let topLeft = p0;
-        let bottomRight = p3;
-        let rest = [p1, p2];
-        let topRight = rest[0].x > rest[1].x ? rest[0] : rest[1];
-        let bottomLeft = rest[0].x < rest[1].x ? rest[0] : rest[1];
-        return [topLeft, topRight, bottomRight, bottomLeft];
-      }
-      function removerSombras(src) {
-        let srcLab = new cv.Mat();
-        cv.cvtColor(src, srcLab, cv.COLOR_RGBA2GRAY);
-        let background = new cv.Mat();
-        let ksize = new cv.Size(71, 71);
-        cv.GaussianBlur(srcLab, background, ksize, 0);
-        let result = new cv.Mat();
-        cv.absdiff(srcLab, background, result);
-        cv.normalize(result, result, 0, 255, cv.NORM_MINMAX);
-        let resultRGBA = new cv.Mat();
-        cv.cvtColor(result, resultRGBA, cv.COLOR_GRAY2RGBA);
-        srcLab.delete(); background.delete(); result.delete();
-        return resultRGBA;
-      }
-      function normalizarContraste(imgRGBA) {
-        let imgGray = new cv.Mat();
-        cv.cvtColor(imgRGBA, imgGray, cv.COLOR_RGBA2GRAY);
-        let norm = new cv.Mat();
-        cv.normalize(imgGray, norm, 0, 255, cv.NORM_MINMAX);
-        let normRGBA = new cv.Mat();
-        cv.cvtColor(norm, normRGBA, cv.COLOR_GRAY2RGBA);
-        imgGray.delete(); norm.delete();
-        return normRGBA;
-      }
-      function removerLinhasGrade(imgRGBA) {
-        let gray = new cv.Mat();
-        cv.cvtColor(imgRGBA, gray, cv.COLOR_RGBA2GRAY);
-        let horizontal = new cv.Mat();
-        let vertical = new cv.Mat();
-        let linhas = new cv.Mat();
-        let kernelHoriz = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 1));
-        let kernelVert = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 40));
-        cv.adaptiveThreshold(gray, linhas, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 15, 10);
-        cv.morphologyEx(linhas, horizontal, cv.MORPH_OPEN, kernelHoriz);
-        cv.morphologyEx(linhas, vertical, cv.MORPH_OPEN, kernelVert);
-        cv.add(horizontal, vertical, linhas);
-        cv.bitwise_not(linhas, linhas);
-        let resultado = new cv.Mat();
-        cv.bitwise_and(imgRGBA, imgRGBA, resultado, linhas);
-        cv.medianBlur(resultado, resultado, 3);
-        gray.delete(); horizontal.delete(); vertical.delete();
-        kernelHoriz.delete(); kernelVert.delete(); linhas.delete();
-        return resultado;
-      }
-      function medirIntensidadeSombra(img) {
-        let gray = new cv.Mat();
-        cv.cvtColor(img, gray, cv.COLOR_RGBA2GRAY);
-        let borda = Math.floor(gray.rows * 0.05);
-        let mask = new cv.Mat.zeros(gray.rows, gray.cols, cv.CV_8U);
-
-        mask.roi(new cv.Rect(0, 0, gray.cols, borda)).setTo(new cv.Scalar(255));
-        mask.roi(new cv.Rect(0, gray.rows - borda, gray.cols, borda)).setTo(new cv.Scalar(255));
-        mask.roi(new cv.Rect(0, 0, borda, gray.rows)).setTo(new cv.Scalar(255));
-        mask.roi(new cv.Rect(gray.cols - borda, 0, borda, gray.rows)).setTo(new cv.Scalar(255));
-
-        let mean = new cv.Mat();
-        let stddev = new cv.Mat();
-        cv.meanStdDev(gray, mean, stddev, mask);
-
-        let desvio = stddev.doubleAt(0, 0);
-
-        gray.delete(); mask.delete(); mean.delete(); stddev.delete();
-        return desvio;
-      }
-      function detectarMultiplasMarcacoes(medias, letras) {
-        const menor = Math.min(...medias);
-        const limiar = menor + 25;
-        let marcadas = medias.map((v, i) => v > limiar ? i : -1).filter(i => i !== -1);
-        if (marcadas.length > 1) {
-          return {
-            multiple: true,
-            letras: marcadas.map(i => letras[i])
-          };
-        }
-        return { multiple: false };
-      }
-      function mapearQuestoes(img, colunas = 4, linhas = 25, larguraFinal = 800, imgOriginalRetificada = null) {
-        const alturaFinal = Math.round((larguraFinal * img.rows) / img.cols);
-        cv.resize(img, img, new cv.Size(larguraFinal, alturaFinal));
-        const cinza = new cv.Mat();
-        const binaria = new cv.Mat();
-        const binariaRGBA = new cv.Mat();
-        cv.cvtColor(img, cinza, cv.COLOR_RGBA2GRAY);
-        cv.threshold(cinza, binaria, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-        cv.cvtColor(binaria, binariaRGBA, cv.COLOR_GRAY2RGBA);
-        cinza.delete(); binaria.delete();
-        const larguraColuna = larguraFinal / colunas;
-        const alturaLinha = alturaFinal / linhas;
-        const mapped = binariaRGBA.clone();
-        const cinzaParaLeitura = new cv.Mat();
-        cv.cvtColor(mapped, cinzaParaLeitura, cv.COLOR_RGBA2GRAY);
-
-        let marcacoesVisual = [];
-        let respostas = [];
-
-        for (let col = 0; col < colunas; col++) {
-          for (let lin = 0; lin < linhas; lin++) {
-            const x = col * larguraColuna;
-            const y = lin * alturaLinha;
-            const numeroQuestao = col * linhas + lin + 1;
-            const partes = 6;
-            const larguraParte = larguraColuna / partes;
-            const letras = ["A", "B", "C", "D", "E"];
-
-            let medias = [];
-            for (let i = 1; i < partes; i++) {
-              let roiX = Math.floor(x + i * larguraParte);
-              let roiY = Math.floor(y);
-              let roiW = Math.floor(larguraParte);
-              let roiH = Math.floor(alturaLinha);
-              let roi = cinzaParaLeitura.roi(new cv.Rect(roiX, roiY, roiW, roiH));
-              let media = cv.mean(roi)[0];
-              medias.push(media);
-              roi.delete();
-            }
-            const maior = Math.max(...medias);
-            const menor = Math.min(...medias);
-            const indicesMaiores = medias
-              .map((m, idx) => ({ idx, m }))
-              .filter(obj => maior - obj.m < 15);
-
-            let resultado;
-            let alternativaMarcada = null;
-
-            if (indicesMaiores.length === 0 || maior - menor < 30) {
-              resultado = "EM BRANCO";
-            } else if (indicesMaiores.length === 1) {
-              const idxEscolhido = indicesMaiores[0].idx;
-              const mediaEscolhida = medias[idxEscolhido];
-              const diferencas = medias
-                .filter((_, i) => i !== idxEscolhido)
-                .map(m => mediaEscolhida - m);
-              const todasBemDiferentes = diferencas.every(diff => diff > 18);
-              if (todasBemDiferentes) {
-                resultado = letras[idxEscolhido];
-                alternativaMarcada = idxEscolhido;
-              } else {
-                resultado = "MAIS DE UMA MARCADA";
-              }
-            } else {
-              resultado = "MAIS DE UMA MARCADA";
-            }
-            if (resultado === "EM BRANCO" || resultado === "MAIS DE UMA MARCADA") {
-              let candidatos = medias.map((m, i) => {
-                let diffs = medias.filter((_, j) => j !== i).map(m2 => m - m2);
-                let destaque = diffs.every(d => d > 25);
-                return destaque ? letras[i] : null;
-              }).filter(x => x !== null);
-              if (candidatos.length === 1) {
-                resultado = `${candidatos[0]} ⚠️`;
-                alternativaMarcada = letras.indexOf(candidatos[0]);
-              }
-            }
-
-            const multMarc = detectarMultiplasMarcacoes(medias, letras);
-            if (multMarc.multiple) {
-              resultado = "MAIS DE UMA MARCADA (" + multMarc.letras.join(", ") + ")";
-            }
-
-            marcacoesVisual.push({
-              coluna: col,
-              linha: lin,
-              alternativaMarcada: alternativaMarcada,
-              resultado: resultado,
-              larguraColuna: larguraColuna,
-              alturaLinha: alturaLinha
-            });
-
-            if (resultado && resultado.length === 1 && resultado.match(/[A-E]/)) {
-              respostas[numeroQuestao-1] = resultado;
-            } else {
-              respostas[numeroQuestao-1] = "";
-            }
-          }
-        }
-        respostasLidas = respostas;
-
-        if (imgOriginalRetificada) {
-          let vis = imgOriginalRetificada.clone();
-          cv.resize(vis, vis, new cv.Size(larguraFinal, alturaFinal));
-          let canvas = document.getElementById('canvasCorrigido');
-          canvas.width = larguraFinal;
-          canvas.height = alturaFinal;
-          cv.imshow(canvas, vis);
-
-          marcacoesVisual.forEach(obj => {
-            let cx, cy;
-            let raio = Math.min(obj.larguraColuna, obj.alturaLinha) * 0.60 / 2;
-            let ctx = canvas.getContext('2d');
-            if (
-              obj.resultado !== "EM BRANCO" &&
-              !obj.resultado.startsWith("MAIS DE UMA MARCADA")
-            ) {
-              cx = (obj.coluna * obj.larguraColuna) + ((obj.alternativaMarcada + 1) * (obj.larguraColuna / 6)) + (obj.larguraColuna / 6) / 2;
-              cy = (obj.linha * obj.alturaLinha) + (obj.alturaLinha / 2);
-              ctx.beginPath();
-              ctx.arc(cx, cy, raio, 0, 2 * Math.PI);
-              ctx.lineWidth = 4;
-              ctx.strokeStyle = '#23cc23';
-              ctx.stroke();
-            } else {
-              cx = (obj.coluna * obj.larguraColuna) + ((obj.larguraColuna / 6) / 2);
-              cy = (obj.linha * obj.alturaLinha) + (obj.alturaLinha / 2);
-              ctx.beginPath();
-              ctx.arc(cx, cy, raio, 0, 2 * Math.PI);
-              ctx.lineWidth = 4;
-              ctx.strokeStyle = '#ee2222';
-              ctx.stroke();
-            }
-          });
-          vis.delete();
-        }
-        mapped.delete();
-        binariaRGBA.delete();
-        cinzaParaLeitura.delete();
-      }
-      const LIMIAR_SOMBRA = 20;
-      const desvio = medirIntensidadeSombra(originalImg);
-      let imagemParaDeteccao = originalImg;
-      let sombraFoiRemovidaAntes = false;
-      if (desvio > LIMIAR_SOMBRA) {
-        estado.semSombras = removerSombras(originalImg);
-        estado.semSombrasNormalizada = normalizarContraste(estado.semSombras);
-        imagemParaDeteccao = estado.semSombrasNormalizada;
-        sombraFoiRemovidaAntes = true;
-      }
-      estado.cinza = new cv.Mat();
-      cv.cvtColor(imagemParaDeteccao, estado.cinza, cv.COLOR_RGBA2GRAY);
-      estado.blur = new cv.Mat();
-      cv.GaussianBlur(estado.cinza, estado.blur, new cv.Size(9,9), 0);
-      estado.canny = new cv.Mat();
-      cv.Canny(estado.blur, estado.canny, 20, 100);
-      estado.contornos = estado.canny.clone();
-      let contours = new cv.MatVector(), hierarchy = new cv.Mat();
-      cv.findContours(estado.canny, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-      estado._contours = contours;
-      estado._hierarchy = hierarchy;
-
-      let biggest = null, biggestArea = 0, contours2 = estado._contours;
-      for (let i = 0; i < contours2.size(); i++) {
-        let cnt = contours2.get(i);
-        let peri = cv.arcLength(cnt, true);
-        let approx = new cv.Mat();
-        cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-        if (approx.rows === 4) {
-          let area = cv.contourArea(cnt);
-          if (area > biggestArea) {
-            biggestArea = area;
-            if (biggest) biggest.delete();
-            biggest = approx;
-          } else {
-            approx.delete();
-          }
-        } else {
-          approx.delete();
-        }
-      }
-      if (!biggest) return mostrarErro("Não achou contorno com 4 vértices.");
-      folhaAproximada = biggest;
-      let pontos = [];
-      for (let i = 0; i < 4; i++) {
-        let pt = folhaAproximada.intPtr(i);
-        pontos.push(new cv.Point(pt[0], pt[1]));
-      }
-      let [tl, tr, br, bl] = ordenarPontos(pontos);
-      let maxWidth = Math.max(
-        Math.hypot(tr.x - tl.x, tr.y - tl.y),
-        Math.hypot(br.x - bl.x, br.y - bl.y)
-      );
-      let maxHeight = Math.max(
-        Math.hypot(tr.x - br.x, tr.y - br.y),
-        Math.hypot(tl.x - bl.x, tl.y - bl.y)
-      );
-      let srcQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-        tl.x, tl.y, tr.x, tr.y,
-        br.x, br.y, bl.x, bl.y
-      ]);
-      let dstQuad = cv.matFromArray(4, 1, cv.CV_32FC2, [
-        0, 0, maxWidth, 0,
-        maxWidth, maxHeight, 0, maxHeight
-      ]);
-      estado.warp = new cv.Mat();
-      cv.warpPerspective(imagemParaDeteccao, estado.warp, cv.getPerspectiveTransform(srcQuad, dstQuad), new cv.Size(maxWidth, maxHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-      srcQuad.delete(); dstQuad.delete();
-      if (sombraFoiRemovidaAntes) {
-        estado.imgPosSombra = estado.warp.clone();
-      } else {
-        estado.imgPosSombra = removerSombras(estado.warp);
-      }
-      estado.linhas = removerLinhasGrade(estado.imgPosSombra);
-      mapearQuestoes(estado.linhas, 4, 25, 800, estado.warp);
-      if (estado.cinza) estado.cinza.delete();
-      if (estado.blur) estado.blur.delete();
-      if (estado.canny) estado.canny.delete();
-      if (estado.contornos) estado.contornos.delete();
-      if (estado.warp) estado.warp.delete();
-      if (estado.semSombras) estado.semSombras.delete();
-      if (estado.semSombrasNormalizada) estado.semSombrasNormalizada.delete();
-      if (estado.imgPosSombra) estado.imgPosSombra.delete();
-      if (estado.linhas) estado.linhas.delete();
-      if (folhaAproximada) folhaAproximada.delete();
-      if (estado._contours) estado._contours.delete();
-      if (estado._hierarchy) estado._hierarchy.delete();
-    }
-
+    fileUpload.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      resetPipeline();
+      showScreen('review-screen');
+      setTimeout(() => { processarImagem(file); }, 100);
+    });
     function onOpenCvReady() {}
   </script>
 </body>
